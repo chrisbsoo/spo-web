@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint-test-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Test
+        run: npm run test
+
+      - name: Build (verifies every route compiles)
+        run: npm run build
+        env:
+          # Placeholder keys: enough for Clerk's build-time validation to
+          # pass, never used to serve real traffic. Real keys live only in
+          # Cloudflare's dashboard for the deployed app.
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_ZmFrZS1rZXktZm9yLWNpLWJ1aWxkLW9ubHkk
+          CLERK_SECRET_KEY: sk_test_ZmFrZS1rZXktZm9yLWNpLWJ1aWxkLW9ubHk

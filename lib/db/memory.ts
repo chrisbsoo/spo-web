@@ -1,0 +1,46 @@
+import type { NewPortfolio, Portfolio, PortfolioRepository } from "./types";
+
+/**
+ * In-memory implementation, used for local development without a real D1
+ * database and for tests. Deliberately implements the exact same interface
+ * as the D1-backed repository, so ownership-scoping behaviour is verified
+ * once against this fake and trusted to hold for the real implementation
+ * (they're both bound by the same contract).
+ */
+export class MemoryPortfolioRepository implements PortfolioRepository {
+  private rows: Portfolio[] = [];
+  private nextId = 1;
+
+  async listByUser(userId: string): Promise<Portfolio[]> {
+    return this.rows
+      .filter((p) => p.userId === userId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  async getById(userId: string, id: string): Promise<Portfolio | null> {
+    const row = this.rows.find((p) => p.id === id && p.userId === userId);
+    return row ?? null;
+  }
+
+  async create(userId: string, data: NewPortfolio): Promise<Portfolio> {
+    const portfolio: Portfolio = {
+      ...data,
+      id: String(this.nextId++),
+      userId,
+      createdAt: new Date().toISOString(),
+    };
+    this.rows.push(portfolio);
+    return portfolio;
+  }
+
+  async remove(userId: string, id: string): Promise<boolean> {
+    const before = this.rows.length;
+    this.rows = this.rows.filter((p) => !(p.id === id && p.userId === userId));
+    return this.rows.length < before;
+  }
+
+  /** Test/dev helper only — not part of the PortfolioRepository interface. */
+  _seed(userId: string, data: NewPortfolio): Promise<Portfolio> {
+    return this.create(userId, data);
+  }
+}
