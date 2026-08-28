@@ -51,7 +51,7 @@ export default function LandingPage() {
             </h1>
             <p className="text-muted text-lg leading-relaxed mb-8 max-w-md">
               Give it a list of tickers and a date range. Variance-reduced proximal gradient
-              methods return a portfolio concentrated in a handful of positions —
+              methods return a portfolio concentrated in a handful of positions,
               everything else driven to exactly zero, not just small.
             </p>
             <div className="flex items-center gap-4">
@@ -83,7 +83,7 @@ export default function LandingPage() {
           <div className="rounded-lg border border-border bg-surface p-6">
             <SparsityGrid />
             <p className="mt-4 text-xs text-muted font-[family-name:var(--font-display)]">
-              8 of 140 candidate assets selected — the rest, exactly zero.
+              8 of 140 candidate assets selected, the rest, exactly zero.
             </p>
           </div>
         </section>
@@ -93,14 +93,14 @@ export default function LandingPage() {
             <div>
               <h2 className="font-[family-name:var(--font-display)] text-sm text-accent mb-2">Four engines</h2>
               <p className="text-muted text-sm leading-relaxed">
-                SPGD, Prox-SVRG, Prox-SARAH, Prox-STORM — pick the convergence/variance
+                SPGD, Prox-SVRG, Prox-SARAH, Prox-STORM, pick the convergence/variance
                 trade-off that fits, or take the recommended default.
               </p>
             </div>
             <div>
               <h2 className="font-[family-name:var(--font-display)] text-sm text-accent mb-2">Two dials</h2>
               <p className="text-muted text-sm leading-relaxed">
-                Risk-aversion and sparsity strength, exposed directly — not buried behind
+                Risk-aversion and sparsity strength, exposed directly, not buried behind
                 a black-box &quot;risk score.&quot;
               </p>
             </div>
