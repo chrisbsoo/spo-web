@@ -9,7 +9,7 @@ import "./globals.css";
 // apply to your deployment environment.
 
 export const metadata: Metadata = {
-  title: "spo-web — sparse portfolio optimisation for traders",
+  title: "SPO Web: sparse portfolio optimisation for traders",
   description: "Build a sparse, long-only portfolio allocation from real market data.",
 };
 
@@ -20,6 +20,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         variables: {
           colorPrimary: "#ffb000",
           colorBackground: "#12181f",
+          colorForeground: "#e8edf2",
+          colorMutedForeground: "#7c8894",
+          colorNeutral: "#7c8894",
+          colorDanger: "#e5484d",
+          colorSuccess: "#3dd68c",
+          colorInput: "#171e26",
+          colorBorder: "#232b35",
           borderRadius: "0.5rem",
         },
       }}

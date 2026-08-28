@@ -1,15 +1,17 @@
 import { Show } from "@clerk/nextjs";
 import Link from "next/link";
 import { SparsityGrid } from "./components/SparsityGrid";
+import Image from "next/image"
 
 export default function LandingPage() {
   return (
     <div className="flex-1 flex flex-col">
       <header className="border-b border-border">
         <div className="mx-auto max-w-6xl px-6 py-4 flex items-center justify-between">
-          <span className="font-[family-name:var(--font-display)] text-sm tracking-wider text-foreground">
-            spo-web
-          </span>
+          <Link href="/dashboard" className="flex items-center gap-2">
+            <Image src="/spo-logo.png" alt="" width={24} height={24} />
+            <span className="font-[family-name:var(--font-display)] text-sm text-foreground">SPO Web</span>
+          </Link>
           <nav className="flex items-center gap-4 text-sm">
             <Show when="signed-out">
               <Link href="/sign-in" className="text-muted hover:text-foreground transition-colors">
@@ -70,7 +72,7 @@ export default function LandingPage() {
                 </Link>
               </Show>
               <a
-                href="https://github.com"
+                href="https://github.com/chrisbsoo/spo-tools/blob/main/docs/thesis.pdf"
                 className="text-sm text-muted hover:text-foreground transition-colors underline underline-offset-4"
               >
                 Read the research
