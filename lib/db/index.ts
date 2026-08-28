@@ -23,8 +23,8 @@ export async function getPortfolioRepository(): Promise<PortfolioRepository> {
     if (context.env.DB) {
       return new D1PortfolioRepository(context.env.DB);
     }
-  } catch {
-    // Not running under the Cloudflare adapter (local `next dev`, tests, CI build) — fall through.
+  } catch (err) {
+    console.error("getCloudflareContext failed, falling back to in-memory store:", err);
   }
 
   if (!devStore) devStore = new MemoryPortfolioRepository();
