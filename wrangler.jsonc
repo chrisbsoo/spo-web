@@ -1,20 +1,27 @@
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "spo-web",
-  "main": ".open-next/worker.js",
-  "compatibility_date": "2026-08-01",
-  "compatibility_flags": ["nodejs_compat"],
-  "assets": {
-    "directory": ".open-next/assets",
-    "binding": "ASSETS"
-  },
-  // D1 binding: after `wrangler d1 create spo-web-db`, paste the real
-  // database_id it prints below (placeholder here is not a real id).
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "spo-web-db",
-      "database_id": "REPLACE_WITH_REAL_DATABASE_ID"
-    }
-  ]
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"workers_dev": true,
+	"name": "spo-web",
+	"main": ".open-next/worker.js",
+	"compatibility_date": "2026-08-01",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	"assets": {
+		"directory": ".open-next/assets",
+		"binding": "ASSETS"
+	},
+	// D1 binding: after `wrangler d1 create spo-web-db`, paste the real
+	// database_id it prints below (placeholder here is not a real id).
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "spo-web-db",
+			"database_id": "c6dfb149-a86a-463a-9785-82a0adbfcbf8"
+		}
+	],
+
+	"vars": {
+		"SPO_TOOLS_URL": "https://spo-tools.onrender.com"
+	}
 }
