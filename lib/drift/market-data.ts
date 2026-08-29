@@ -334,3 +334,23 @@ export async function fetchAlignedReturnsForTickers(
 
   return calculateAlignedReturnsFromPrices(pricesByTicker);
 }
+
+export async function fetchReturnsSinceDateForTickers(
+  tickers: string[],
+  startDate: string,
+  endDate: string,
+): Promise<AlignedReturnRow[]> {
+  const startTimestamp = toUnixSeconds(startDate);
+
+  const lookbackDate = new Date((startTimestamp - 14 * 24 * 60 * 60) * 1000)
+    .toISOString()
+    .slice(0, 10);
+
+  const rows = await fetchAlignedReturnsForTickers(
+    tickers,
+    lookbackDate,
+    endDate,
+  );
+
+  return rows.filter((row) => row.date >= startDate);
+}

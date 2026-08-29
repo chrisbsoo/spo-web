@@ -7,6 +7,7 @@ import {
   calculateLogReturns,
   fetchAdjustedClosePrices,
   fetchAlignedReturnsForTickers,
+  fetchReturnsSinceDateForTickers,
   groupAlignedReturnsByTicker,
 } from "../lib/drift/market-data";
 
@@ -358,6 +359,62 @@ describe("fetchAlignedReturnsForTickers", () => {
     expect(result[1].date).toBe("2024-01-04");
     expect(result[1].returnsByTicker.AAPL).toBeCloseTo(Math.log(121 / 110));
     expect(result[1].returnsByTicker.MSFT).toBeCloseTo(Math.log(242 / 220));
+  });
+});
+
+describe("fetchReturnsSinceDateForTickers", () => {
+  it("keeps the first return beginning before the monitoring start date", async () => {
+    const fetchMock = vi.fn<typeof fetch>();
+
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          chart: {
+            result: [
+              {
+                timestamp: [
+                  1704153600, // 2024-01-02
+                  1704240000, // 2024-01-03
+                  1704326400, // 2024-01-04
+                  1704412800, // 2024-01-05
+                  1704672000, // 2024-01-08
+                ],
+                indicators: {
+                  adjclose: [
+                    {
+                      adjclose: [100, 101, 102, 104, 108],
+                    },
+                  ],
+                },
+              },
+            ],
+            error: null,
+          },
+        }),
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json",
+          },
+        },
+      ),
+    );
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await fetchReturnsSinceDateForTickers(
+      ["AAPL"],
+      "2024-01-05",
+      "2024-01-09",
+    );
+
+    expect(result).toHaveLength(2);
+
+    expect(result[0].date).toBe("2024-01-05");
+    expect(result[0].returnsByTicker.AAPL).toBeCloseTo(Math.log(104 / 102));
+
+    expect(result[1].date).toBe("2024-01-08");
+    expect(result[1].returnsByTicker.AAPL).toBeCloseTo(Math.log(108 / 104));
   });
 });
 
