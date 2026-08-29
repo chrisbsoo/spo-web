@@ -1,5 +1,13 @@
 import type { D1Database } from "@cloudflare/workers-types";
-import type { AssetWeight, NewPortfolio, Portfolio, PortfolioRepository } from "./types";
+import type {
+  AssetWeight,
+  DriftBaseline,
+  DriftBaselineRepository,
+  NewDriftBaseline,
+  NewPortfolio,
+  Portfolio,
+  PortfolioRepository,
+} from "./types";
 
 interface PortfolioRow {
   id: string;
@@ -15,6 +23,29 @@ interface PortfolioRow {
   final_objective: number;
   sparsity_pct: number;
   created_at: string;
+}
+
+interface DriftBaselineRow {
+  portfolio_id: string;
+  user_id: string;
+  returns_by_ticker: string;
+  start_date: string;
+  end_date: string;
+  created_at: string;
+}
+
+function rowToDriftBaseline(row: DriftBaselineRow): DriftBaseline {
+  return {
+    portfolioId: row.portfolio_id,
+    userId: row.user_id,
+    returnsByTicker: JSON.parse(row.returns_by_ticker) as Record<
+      string,
+      number[]
+    >,
+    start: row.start_date,
+    end: row.end_date,
+    createdAt: row.created_at,
+  };
 }
 
 function rowToPortfolio(row: PortfolioRow): Portfolio {
@@ -49,7 +80,9 @@ export class D1PortfolioRepository implements PortfolioRepository {
 
   async listByUser(userId: string): Promise<Portfolio[]> {
     const { results } = await this.db
-      .prepare("SELECT * FROM portfolios WHERE user_id = ? ORDER BY created_at DESC")
+      .prepare(
+        "SELECT * FROM portfolios WHERE user_id = ? ORDER BY created_at DESC",
+      )
       .bind(userId)
       .all<PortfolioRow>();
     return results.map(rowToPortfolio);
@@ -71,7 +104,7 @@ export class D1PortfolioRepository implements PortfolioRepository {
       .prepare(
         `INSERT INTO portfolios
           (id, user_id, name, tickers, start_date, end_date, algorithm, gamma, lambda, weights, final_objective, sparsity_pct, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         id,
@@ -86,7 +119,7 @@ export class D1PortfolioRepository implements PortfolioRepository {
         JSON.stringify(data.weights),
         data.finalObjective,
         data.sparsityPct,
-        createdAt
+        createdAt,
       )
       .run();
 
@@ -99,5 +132,78 @@ export class D1PortfolioRepository implements PortfolioRepository {
       .bind(id, userId)
       .run();
     return (result.meta.changes ?? 0) > 0;
+  }
+}
+
+export class D1DriftBaselineRepository implements DriftBaselineRepository {
+  constructor(private readonly db: D1Database) {}
+
+  async getByPortfolioId(
+    userId: string,
+    portfolioId: string,
+  ): Promise<DriftBaseline | null> {
+    const row = await this.db
+      .prepare(
+        `SELECT *
+         FROM drift_baselines
+         WHERE portfolio_id = ? AND user_id = ?`,
+      )
+      .bind(portfolioId, userId)
+      .first<DriftBaselineRow>();
+
+    return row ? rowToDriftBaseline(row) : null;
+  }
+
+  async create(userId: string, data: NewDriftBaseline): Promise<DriftBaseline> {
+    const portfolio = await this.db
+      .prepare(
+        `SELECT id
+     FROM portfolios
+     WHERE id = ? AND user_id = ?`,
+      )
+      .bind(data.portfolioId, userId)
+      .first<{ id: string }>();
+
+    if (!portfolio) {
+      throw new Error(`Portfolio ${data.portfolioId} not found.`);
+    }
+    const existing = await this.getByPortfolioId(userId, data.portfolioId);
+
+    if (existing) {
+      throw new Error(
+        `Drift baseline already exists for portfolio ${data.portfolioId}.`,
+      );
+    }
+
+    const createdAt = new Date().toISOString();
+
+    await this.db
+      .prepare(
+        `INSERT INTO drift_baselines
+          (
+            portfolio_id,
+            user_id,
+            returns_by_ticker,
+            start_date,
+            end_date,
+            created_at
+          )
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+      .bind(
+        data.portfolioId,
+        userId,
+        JSON.stringify(data.returnsByTicker),
+        data.start,
+        data.end,
+        createdAt,
+      )
+      .run();
+
+    return {
+      ...data,
+      userId,
+      createdAt,
+    };
   }
 }
