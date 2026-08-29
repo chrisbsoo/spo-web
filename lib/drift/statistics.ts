@@ -34,8 +34,7 @@ function quantile(sortedValues: number[], probability: number): number {
   const weight = position - lowerIndex;
 
   return (
-    sortedValues[lowerIndex] * (1 - weight) +
-    sortedValues[upperIndex] * weight
+    sortedValues[lowerIndex] * (1 - weight) + sortedValues[upperIndex] * weight
   );
 }
 
@@ -49,10 +48,7 @@ function findBinIndex(value: number, binEdges: number[]): number {
   return binEdges.length;
 }
 
-function countValuesByBin(
-  values: number[],
-  binEdges: number[],
-): number[] {
+function countValuesByBin(values: number[], binEdges: number[]): number[] {
   const counts = new Array<number>(binEdges.length + 1).fill(0);
 
   for (const value of values) {
@@ -89,28 +85,28 @@ export function calculatePSI(
   }
 
   const baselineCounts = countValuesByBin(baselineReturns, binEdges);
-const monitoredCounts = countValuesByBin(monitoredReturns, binEdges);
+  const monitoredCounts = countValuesByBin(monitoredReturns, binEdges);
 
-const epsilon = 1e-6;
-let psi = 0;
+  const epsilon = 1e-6;
+  let psi = 0;
 
-for (let i = 0; i < baselineCounts.length; i += 1) {
-  const baselineProportion = Math.max(
-    baselineCounts[i] / baselineReturns.length,
-    epsilon,
-  );
+  for (let i = 0; i < baselineCounts.length; i += 1) {
+    const baselineProportion = Math.max(
+      baselineCounts[i] / baselineReturns.length,
+      epsilon,
+    );
 
-  const monitoredProportion = Math.max(
-    monitoredCounts[i] / monitoredReturns.length,
-    epsilon,
-  );
+    const monitoredProportion = Math.max(
+      monitoredCounts[i] / monitoredReturns.length,
+      epsilon,
+    );
 
-  psi +=
-    (monitoredProportion - baselineProportion) *
-    Math.log(monitoredProportion / baselineProportion);
-}
+    psi +=
+      (monitoredProportion - baselineProportion) *
+      Math.log(monitoredProportion / baselineProportion);
+  }
 
-return psi;
+  return psi;
 }
 
 export function calculateKSStatistic(
@@ -175,28 +171,22 @@ function calculateKSPValue(
   baselineSize: number,
   monitoredSize: number,
 ): number {
-
-    if (statistic === 0) {
-       return 1;
-   }
+  if (statistic === 0) {
+    return 1;
+  }
 
   const effectiveSampleSize = Math.sqrt(
     (baselineSize * monitoredSize) / (baselineSize + monitoredSize),
   );
 
   const lambda =
-    (effectiveSampleSize +
-      0.12 +
-      0.11 / effectiveSampleSize) *
-    statistic;
+    (effectiveSampleSize + 0.12 + 0.11 / effectiveSampleSize) * statistic;
 
   let sum = 0;
 
   for (let k = 1; k <= 100; k += 1) {
     const term =
-      2 *
-      (k % 2 === 1 ? 1 : -1) *
-      Math.exp(-2 * k * k * lambda * lambda);
+      2 * (k % 2 === 1 ? 1 : -1) * Math.exp(-2 * k * k * lambda * lambda);
 
     sum += term;
   }
@@ -208,10 +198,7 @@ export function calculateKSTest(
   baselineReturns: number[],
   monitoredReturns: number[],
 ): { statistic: number; pValue: number } {
-  const statistic = calculateKSStatistic(
-    baselineReturns,
-    monitoredReturns,
-  );
+  const statistic = calculateKSStatistic(baselineReturns, monitoredReturns);
 
   const pValue = calculateKSPValue(
     statistic,

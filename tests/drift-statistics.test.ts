@@ -61,24 +61,24 @@ describe("calculatePSI", () => {
   });
 
   it("rejects an invalid number of bins", () => {
-  const baseline = [1, 2, 3, 4, 5];
+    const baseline = [1, 2, 3, 4, 5];
 
-  expect(() => calculatePSI(baseline, baseline, 1)).toThrow(
-    "PSI requires at least two bins.",
-  );
+    expect(() => calculatePSI(baseline, baseline, 1)).toThrow(
+      "PSI requires at least two bins.",
+    );
 
-  expect(() => calculatePSI(baseline, baseline, 2.5)).toThrow(
-    "PSI requires at least two bins.",
-  );
-});
+    expect(() => calculatePSI(baseline, baseline, 2.5)).toThrow(
+      "PSI requires at least two bins.",
+    );
+  });
 
-it("rejects more bins than baseline observations", () => {
-  const baseline = [1, 2, 3];
+  it("rejects more bins than baseline observations", () => {
+    const baseline = [1, 2, 3];
 
-  expect(() => calculatePSI(baseline, baseline, 4)).toThrow(
-    "PSI cannot use more bins than baseline observations.",
-  );
-});
+    expect(() => calculatePSI(baseline, baseline, 4)).toThrow(
+      "PSI cannot use more bins than baseline observations.",
+    );
+  });
 });
 
 describe("calculateKSStatistic", () => {
