@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { getPortfolioRepository } from "@/lib/db";
 import { AppHeader } from "../../components/AppHeader";
 import { DeleteButton } from "./DeleteButton";
+import { DriftCheck } from "./DriftCheck";
 
 export default async function PortfolioDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { userId } = await auth();
@@ -58,6 +59,7 @@ export default async function PortfolioDetailPage({ params }: { params: Promise<
           </p>
           <p>Final objective: {portfolio.finalObjective.toFixed(6)}</p>
         </div>
+        <DriftCheck portfolioId={portfolio.id} />
       </main>
     </div>
   );
