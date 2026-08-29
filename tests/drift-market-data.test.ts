@@ -7,6 +7,7 @@ import {
   calculateLogReturns,
   fetchAdjustedClosePrices,
   fetchAlignedReturnsForTickers,
+  groupAlignedReturnsByTicker,
 } from "../lib/drift/market-data";
 
 afterEach(() => {
@@ -132,6 +133,52 @@ describe("calculateAlignedReturnsFromPrices", () => {
     expect(result[0].returnsByTicker.AAPL).toBeCloseTo(Math.log(110 / 100));
 
     expect(result[0].returnsByTicker.MSFT).toBeCloseTo(Math.log(220 / 200));
+  });
+});
+
+describe("groupAlignedReturnsByTicker", () => {
+  it("groups aligned return rows into ticker return arrays", () => {
+    const result = groupAlignedReturnsByTicker([
+      {
+        date: "2024-01-03",
+        returnsByTicker: {
+          AAPL: 0.01,
+          MSFT: 0.02,
+        },
+      },
+      {
+        date: "2024-01-04",
+        returnsByTicker: {
+          AAPL: -0.005,
+          MSFT: 0.008,
+        },
+      },
+    ]);
+
+    expect(result).toEqual({
+      AAPL: [0.01, -0.005],
+      MSFT: [0.02, 0.008],
+    });
+  });
+
+  it("rejects a later row that is missing a ticker", () => {
+    expect(() =>
+      groupAlignedReturnsByTicker([
+        {
+          date: "2024-01-03",
+          returnsByTicker: {
+            AAPL: 0.01,
+            MSFT: 0.02,
+          },
+        },
+        {
+          date: "2024-01-04",
+          returnsByTicker: {
+            AAPL: -0.005,
+          },
+        },
+      ]),
+    ).toThrow("Missing return for ticker MSFT on 2024-01-04.");
   });
 });
 

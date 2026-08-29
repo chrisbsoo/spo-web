@@ -151,6 +151,38 @@ export function calculateAlignedReturnsFromPrices(
   return alignedReturns;
 }
 
+export function groupAlignedReturnsByTicker(
+  rows: AlignedReturnRow[],
+): Record<string, number[]> {
+  if (rows.length === 0) {
+    throw new Error("At least one aligned return row is required.");
+  }
+
+  const tickers = Object.keys(rows[0].returnsByTicker);
+
+  if (tickers.length === 0) {
+    throw new Error("Aligned return rows must contain at least one ticker.");
+  }
+
+  const returnsByTicker = Object.fromEntries(
+    tickers.map((ticker) => [ticker, [] as number[]]),
+  ) as Record<string, number[]>;
+
+  for (const row of rows) {
+    for (const ticker of tickers) {
+      const value = row.returnsByTicker[ticker];
+
+      if (value === undefined) {
+        throw new Error(`Missing return for ticker ${ticker} on ${row.date}.`);
+      }
+
+      returnsByTicker[ticker].push(value);
+    }
+  }
+
+  return returnsByTicker;
+}
+
 export function alignReturnsByTicker(
   returnsByTicker: Record<string, MarketReturnPoint[]>,
 ): AlignedReturnRow[] {
