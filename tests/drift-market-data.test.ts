@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   alignReturnsByTicker,
+  calculateAlignedReturnsFromPrices,
   calculateDatedLogReturns,
   calculateLogReturns,
   fetchAdjustedClosePrices,
@@ -84,6 +85,53 @@ describe("calculateDatedLogReturns", () => {
 
     expect(result[1].date).toBe("2024-01-04");
     expect(result[1].logReturn).toBeCloseTo(Math.log(121 / 110));
+  });
+});
+
+describe("calculateAlignedReturnsFromPrices", () => {
+  it("drops intervals when any ticker is missing either endpoint", () => {
+    const result = calculateAlignedReturnsFromPrices({
+      AAPL: [
+        {
+          date: "2024-01-02",
+          adjustedClose: 100,
+        },
+        {
+          date: "2024-01-03",
+          adjustedClose: 110,
+        },
+        {
+          date: "2024-01-04",
+          adjustedClose: 120,
+        },
+        {
+          date: "2024-01-05",
+          adjustedClose: 130,
+        },
+      ],
+      MSFT: [
+        {
+          date: "2024-01-02",
+          adjustedClose: 200,
+        },
+        {
+          date: "2024-01-03",
+          adjustedClose: 220,
+        },
+        {
+          date: "2024-01-05",
+          adjustedClose: 242,
+        },
+      ],
+    });
+
+    expect(result).toHaveLength(1);
+
+    expect(result[0].date).toBe("2024-01-03");
+
+    expect(result[0].returnsByTicker.AAPL).toBeCloseTo(Math.log(110 / 100));
+
+    expect(result[0].returnsByTicker.MSFT).toBeCloseTo(Math.log(220 / 200));
   });
 });
 

@@ -81,6 +81,76 @@ export function calculateDatedLogReturns(
   }));
 }
 
+export function calculateAlignedReturnsFromPrices(
+  pricesByTicker: Record<string, MarketPricePoint[]>,
+): AlignedReturnRow[] {
+  const tickers = Object.keys(pricesByTicker);
+
+  if (tickers.length === 0) {
+    throw new Error("At least one ticker price series is required.");
+  }
+
+  const priceMaps = Object.fromEntries(
+    tickers.map((ticker) => [
+      ticker,
+      new Map(
+        pricesByTicker[ticker].map((point) => [
+          point.date,
+          point.adjustedClose,
+        ]),
+      ),
+    ]),
+  ) as Record<string, Map<string, number>>;
+
+  const allDates = Array.from(
+    new Set(
+      tickers.flatMap((ticker) =>
+        pricesByTicker[ticker].map((point) => point.date),
+      ),
+    ),
+  ).sort();
+
+  const alignedReturns: AlignedReturnRow[] = [];
+
+  for (let i = 1; i < allDates.length; i += 1) {
+    const previousDate = allDates[i - 1];
+    const currentDate = allDates[i];
+
+    const hasCompleteInterval = tickers.every(
+      (ticker) =>
+        priceMaps[ticker].has(previousDate) &&
+        priceMaps[ticker].has(currentDate),
+    );
+
+    if (!hasCompleteInterval) {
+      continue;
+    }
+
+    const returnsByTicker = Object.fromEntries(
+      tickers.map((ticker) => {
+        const previousPrice = priceMaps[ticker].get(previousDate)!;
+
+        const currentPrice = priceMaps[ticker].get(currentDate)!;
+
+        const logReturn = calculateLogReturns([previousPrice, currentPrice])[0];
+
+        return [ticker, logReturn];
+      }),
+    );
+
+    alignedReturns.push({
+      date: currentDate,
+      returnsByTicker,
+    });
+  }
+
+  if (alignedReturns.length === 0) {
+    throw new Error("No complete return intervals found across tickers.");
+  }
+
+  return alignedReturns;
+}
+
 export function alignReturnsByTicker(
   returnsByTicker: Record<string, MarketReturnPoint[]>,
 ): AlignedReturnRow[] {
@@ -220,13 +290,15 @@ export async function fetchAlignedReturnsForTickers(
     throw new Error("Tickers must be unique.");
   }
 
-  const returnsByTicker: Record<string, MarketReturnPoint[]> = {};
+  const pricesByTicker: Record<string, MarketPricePoint[]> = {};
 
   for (const ticker of normalizedTickers) {
-    const prices = await fetchAdjustedClosePrices(ticker, startDate, endDate);
-
-    returnsByTicker[ticker] = calculateDatedLogReturns(prices);
+    pricesByTicker[ticker] = await fetchAdjustedClosePrices(
+      ticker,
+      startDate,
+      endDate,
+    );
   }
 
-  return alignReturnsByTicker(returnsByTicker);
+  return calculateAlignedReturnsFromPrices(pricesByTicker);
 }
