@@ -1,4 +1,10 @@
-import type { DriftInput, DriftMetrics } from "./types";
+import type {
+  DriftInput,
+  DriftMetrics,
+  DriftStatus,
+  MultiTickerDriftInput,
+  MultiTickerDriftMetrics,
+} from "./types";
 
 import {
   calculateKSTest,
@@ -20,6 +26,18 @@ function determineDriftStatus(
   }
 
   if (psi >= PSI_WARNING_THRESHOLD || ksPValue < KS_SIGNIFICANCE_LEVEL) {
+    return "warning";
+  }
+
+  return "stable";
+}
+
+function getWorstStatus(statuses: DriftStatus[]): DriftStatus {
+  if (statuses.includes("drift")) {
+    return "drift";
+  }
+
+  if (statuses.includes("warning")) {
     return "warning";
   }
 
@@ -53,5 +71,32 @@ export function calculateDriftMetrics(input: DriftInput): DriftMetrics {
     ksStatistic,
     ksPValue,
     status,
+  };
+}
+
+export function calculateMultiTickerDriftMetrics(
+  input: MultiTickerDriftInput,
+): MultiTickerDriftMetrics {
+  const tickers = Object.keys(input.returnsByTicker);
+
+  if (tickers.length === 0) {
+    throw new Error("At least one ticker drift input is required.");
+  }
+
+  const metricsByTicker: Record<string, DriftMetrics> = {};
+
+  for (const ticker of tickers) {
+    metricsByTicker[ticker] = calculateDriftMetrics(
+      input.returnsByTicker[ticker],
+    );
+  }
+
+  const overallStatus = getWorstStatus(
+    Object.values(metricsByTicker).map((metrics) => metrics.status),
+  );
+
+  return {
+    metricsByTicker,
+    overallStatus,
   };
 }

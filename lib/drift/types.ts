@@ -18,3 +18,12 @@ export interface DriftMetrics {
 
   status: DriftStatus;
 }
+
+export interface MultiTickerDriftInput {
+  returnsByTicker: Record<string, DriftInput>;
+}
+
+export interface MultiTickerDriftMetrics {
+  metricsByTicker: Record<string, DriftMetrics>;
+  overallStatus: DriftStatus;
+}
