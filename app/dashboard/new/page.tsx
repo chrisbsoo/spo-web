@@ -253,21 +253,38 @@ export default function NewPortfolioPage() {
                   ))}
                   <LabelList
                     dataKey="weight"
-                    position="right"
-                    content={({ x, y, width, height, value, index }) =>
-                      hoveredIndex === index ? (
+                    content={({ x, y, width, height, value, index }) => {
+                      if (hoveredIndex !== index) return null;
+                      const w = Number(width);
+                      const cy = Number(y) + Number(height) / 2 + 4;
+                      const fitsInside = w >= 50; // enough room for e.g. "12.3%" inside the bar
+
+                      return fitsInside ? (
                         <text
-                          x={Number(x) + Number(width) + 6}
-                          y={Number(y) + Number(height) / 2}
-                          dy={4}
-                          fill="#e8edf2"
+                          x={Number(x) + w - 8}
+                          y={cy}
+                          textAnchor="end"
+                          fill="#0b0f14"
                           fontSize={12}
+                          fontWeight={600}
                           fontFamily="var(--font-display)"
                         >
                           {value}%
                         </text>
-                      ) : null
-                    }
+                      ) : (
+                        <text
+                          x={Number(x) + w + 8}
+                          y={cy}
+                          textAnchor="start"
+                          fill="#e8edf2"
+                          fontSize={12}
+                          fontWeight={600}
+                          fontFamily="var(--font-display)"
+                        >
+                          {value}%
+                        </text>
+                      );
+                    }}
                   />
                 </Bar>
               </BarChart>
