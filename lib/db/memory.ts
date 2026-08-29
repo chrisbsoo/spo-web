@@ -1,4 +1,11 @@
-import type { NewPortfolio, Portfolio, PortfolioRepository } from "./types";
+import type {
+  DriftBaseline,
+  DriftBaselineRepository,
+  NewDriftBaseline,
+  NewPortfolio,
+  Portfolio,
+  PortfolioRepository,
+} from "./types";
 
 /**
  * In-memory implementation, used for local development without a real D1
@@ -42,5 +49,49 @@ export class MemoryPortfolioRepository implements PortfolioRepository {
   /** Test/dev helper only — not part of the PortfolioRepository interface. */
   _seed(userId: string, data: NewPortfolio): Promise<Portfolio> {
     return this.create(userId, data);
+  }
+}
+
+export class MemoryDriftBaselineRepository
+  implements DriftBaselineRepository
+{
+  private rows: DriftBaseline[] = [];
+
+  async getByPortfolioId(
+    userId: string,
+    portfolioId: string,
+  ): Promise<DriftBaseline | null> {
+    const row = this.rows.find(
+      (baseline) =>
+        baseline.portfolioId === portfolioId &&
+        baseline.userId === userId,
+    );
+
+    return row ?? null;
+  }
+
+  async create(
+    userId: string,
+    data: NewDriftBaseline,
+  ): Promise<DriftBaseline> {
+    const existing = this.rows.find(
+      (baseline) => baseline.portfolioId === data.portfolioId,
+    );
+
+    if (existing) {
+      throw new Error(
+        `Drift baseline already exists for portfolio ${data.portfolioId}.`,
+      );
+    }
+
+    const baseline: DriftBaseline = {
+      ...data,
+      userId,
+      createdAt: new Date().toISOString(),
+    };
+
+    this.rows.push(baseline);
+
+    return baseline;
   }
 }

@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { MemoryPortfolioRepository } from "@/lib/db/memory";
-import type { NewPortfolio } from "@/lib/db/types";
+import {
+  MemoryDriftBaselineRepository,
+  MemoryPortfolioRepository,
+} from "@/lib/db/memory";
 
+import type { NewDriftBaseline, NewPortfolio } from "@/lib/db/types";
 const samplePortfolio: NewPortfolio = {
   name: "Tech tilt",
   tickers: ["AAPL", "MSFT", "NVDA"],
@@ -17,6 +20,16 @@ const samplePortfolio: NewPortfolio = {
   ],
   finalObjective: 0.0081,
   sparsityPct: 0,
+};
+
+const sampleBaseline: NewDriftBaseline = {
+  portfolioId: "portfolio-1",
+  returnsByTicker: {
+    AAPL: [0.01, -0.02, 0.015],
+    MSFT: [0.005, -0.01, 0.02],
+  },
+  start: "2020-01-01",
+  end: "2025-01-01",
 };
 
 describe("PortfolioRepository ownership scoping", () => {
@@ -47,7 +60,10 @@ describe("PortfolioRepository ownership scoping", () => {
     const repo = new MemoryPortfolioRepository();
     await repo._seed("user-A", { ...samplePortfolio, name: "A's portfolio" });
     await repo._seed("user-B", { ...samplePortfolio, name: "B's portfolio" });
-    await repo._seed("user-A", { ...samplePortfolio, name: "A's second portfolio" });
+    await repo._seed("user-A", {
+      ...samplePortfolio,
+      name: "A's second portfolio",
+    });
 
     const listA = await repo.listByUser("user-A");
     const listB = await repo.listByUser("user-B");
@@ -69,5 +85,50 @@ describe("PortfolioRepository ownership scoping", () => {
   it("getById returns null for a nonexistent id rather than throwing", async () => {
     const repo = new MemoryPortfolioRepository();
     await expect(repo.getById("user-A", "does-not-exist")).resolves.toBeNull();
+  });
+});
+
+describe("DriftBaselineRepository ownership scoping", () => {
+  it("creates and retrieves a drift baseline for its owner", async () => {
+    const repo = new MemoryDriftBaselineRepository();
+
+    const created = await repo.create("user-A", sampleBaseline);
+
+    expect(created.portfolioId).toBe("portfolio-1");
+    expect(created.userId).toBe("user-A");
+    expect(created.returnsByTicker).toEqual(sampleBaseline.returnsByTicker);
+    expect(created.createdAt).toBeTruthy();
+
+    const retrieved = await repo.getByPortfolioId("user-A", "portfolio-1");
+
+    expect(retrieved).toEqual(created);
+  });
+
+  it("does not let another user read the baseline", async () => {
+    const repo = new MemoryDriftBaselineRepository();
+
+    await repo.create("user-A", sampleBaseline);
+
+    const asOther = await repo.getByPortfolioId("user-B", "portfolio-1");
+
+    expect(asOther).toBeNull();
+  });
+
+  it("rejects a second baseline for the same portfolio", async () => {
+    const repo = new MemoryDriftBaselineRepository();
+
+    await repo.create("user-A", sampleBaseline);
+
+    await expect(repo.create("user-A", sampleBaseline)).rejects.toThrow(
+      "Drift baseline already exists for portfolio portfolio-1.",
+    );
+  });
+
+  it("returns null for a nonexistent portfolio baseline", async () => {
+    const repo = new MemoryDriftBaselineRepository();
+
+    await expect(
+      repo.getByPortfolioId("user-A", "does-not-exist"),
+    ).resolves.toBeNull();
   });
 });
