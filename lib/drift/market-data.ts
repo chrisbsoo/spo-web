@@ -204,7 +204,7 @@ export async function fetchAdjustedClosePrices(
     throw new Error("Start date must be before end date.");
   }
 
-  const period2 = endTimestamp + 24 * 60 * 60;
+  const period2 = endTimestamp;
 
   const url = new URL(
     `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}`,

@@ -364,7 +364,7 @@ describe("fetchAdjustedClosePrices", () => {
 
     expect(url.pathname).toBe("/v8/finance/chart/AAPL");
     expect(url.searchParams.get("period1")).toBe("1577836800");
-    expect(url.searchParams.get("period2")).toBe("1578096000");
+    expect(url.searchParams.get("period2")).toBe("1578009600");
     expect(url.searchParams.get("interval")).toBe("1d");
     expect(url.searchParams.get("events")).toBe("history");
     expect(url.searchParams.get("includeAdjustedClose")).toBe("true");
