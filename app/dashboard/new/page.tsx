@@ -2,8 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, XAxis, YAxis } from "recharts";
 import { AppHeader } from "../../components/AppHeader";
+import { Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, XAxis, YAxis } from "recharts";
 
 interface AssetWeight {
   ticker: string;
@@ -35,8 +35,7 @@ export default function NewPortfolioPage() {
   const [gamma, setGamma] = useState(2.0);
   const [lambda, setLambda] = useState(0.01);
   const [name, setName] = useState("");
-
-  const [loading, setLoading] = useState(false);
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<OptimizeResult | null>(null);
@@ -242,7 +241,35 @@ export default function NewPortfolioPage() {
                   tick={{ fill: "#E8EDF2", fontSize: 12, fontFamily: "var(--font-display)" }}
                   width={60}
                 />
-                <Bar dataKey="weight" fill="#FFB000" radius={[0, 3, 3, 0]} />
+                <Bar dataKey="weight" radius={[0, 3, 3, 0]}>
+                  {chartData.map((_, i) => (
+                    <Cell
+                      key={i}
+                      fill="#FFB000"
+                      fillOpacity={hoveredIndex === null ? 1 : hoveredIndex === i ? 1 : 0.6}
+                      onMouseEnter={() => setHoveredIndex(i)}
+                      onMouseLeave={() => setHoveredIndex(null)}
+                    />
+                  ))}
+                  <LabelList
+                    dataKey="weight"
+                    position="right"
+                    content={({ x, y, width, height, value, index }) =>
+                      hoveredIndex === index ? (
+                        <text
+                          x={Number(x) + Number(width) + 6}
+                          y={Number(y) + Number(height) / 2}
+                          dy={4}
+                          fill="#e8edf2"
+                          fontSize={12}
+                          fontFamily="var(--font-display)"
+                        >
+                          {value}%
+                        </text>
+                      ) : null
+                    }
+                  />
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
 
