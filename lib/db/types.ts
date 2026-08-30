@@ -34,3 +34,29 @@ export interface PortfolioRepository {
   create(userId: string, data: NewPortfolio): Promise<Portfolio>;
   remove(userId: string, id: string): Promise<boolean>;
 }
+
+export interface DriftBaseline {
+  portfolioId: string;
+  userId: string;
+  returnsByTicker: Record<string, number[]>;
+  start: string;
+  end: string;
+  createdAt: string;
+}
+
+export type NewDriftBaseline = Omit<
+  DriftBaseline,
+  "userId" | "createdAt"
+>;
+
+export interface DriftBaselineRepository {
+  getByPortfolioId(
+    userId: string,
+    portfolioId: string,
+  ): Promise<DriftBaseline | null>;
+
+  create(
+    userId: string,
+    data: NewDriftBaseline,
+  ): Promise<DriftBaseline>;
+}

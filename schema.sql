@@ -21,3 +21,16 @@ CREATE TABLE IF NOT EXISTS portfolios (
 -- is what keeps "list my portfolios" fast as the table grows, rather than a
 -- full-table scan per request.
 CREATE INDEX IF NOT EXISTS idx_portfolios_user_id ON portfolios(user_id);
+
+CREATE TABLE IF NOT EXISTS drift_baselines (
+  portfolio_id       TEXT PRIMARY KEY,
+  user_id            TEXT NOT NULL,
+  returns_by_ticker  TEXT NOT NULL, -- JSON-encoded Record<string, number[]>
+  start_date         TEXT NOT NULL,
+  end_date           TEXT NOT NULL,
+  created_at         TEXT NOT NULL,
+  FOREIGN KEY (portfolio_id) REFERENCES portfolios(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_drift_baselines_user_id
+  ON drift_baselines(user_id);
