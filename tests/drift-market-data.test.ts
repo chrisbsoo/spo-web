@@ -5,7 +5,6 @@ import {
   calculateAlignedReturnsFromPrices,
   calculateDatedLogReturns,
   calculateLogReturns,
-  fetchAdjustedClosePrices,
   fetchAlignedReturnsForTickers,
   fetchReturnsSinceDateForTickers,
   groupAlignedReturnsByTicker,
@@ -13,6 +12,7 @@ import {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });
 
 describe("calculateLogReturns", () => {
@@ -256,338 +256,98 @@ describe("alignReturnsByTicker", () => {
 });
 
 describe("fetchAlignedReturnsForTickers", () => {
-  it("rejects an empty ticker list", async () => {
-    await expect(
-      fetchAlignedReturnsForTickers([], "2024-01-01", "2024-01-05"),
-    ).rejects.toThrow("At least one ticker is required.");
-  });
+  it("fetches, calculates, and aligns returns for multiple tickers via spo-tools", async () => {
+    vi.stubEnv("SPO_TOOLS_URL", "https://spo-tools.example.com");
 
-  it("rejects empty ticker values", async () => {
-    await expect(
-      fetchAlignedReturnsForTickers(
-        ["AAPL", "   "],
-        "2024-01-01",
-        "2024-01-05",
-      ),
-    ).rejects.toThrow("Tickers cannot be empty.");
-  });
-
-  it("rejects duplicate tickers after normalization", async () => {
-    await expect(
-      fetchAlignedReturnsForTickers(
-        ["AAPL", "aapl"],
-        "2024-01-01",
-        "2024-01-05",
-      ),
-    ).rejects.toThrow("Tickers must be unique.");
-  });
-  it("fetches, calculates, and aligns returns for multiple tickers", async () => {
     const fetchMock = vi.fn<typeof fetch>();
 
-    fetchMock
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            chart: {
-              result: [
-                {
-                  timestamp: [1704153600, 1704240000, 1704326400],
-                  indicators: {
-                    adjclose: [
-                      {
-                        adjclose: [100, 110, 121],
-                      },
-                    ],
-                  },
-                },
-              ],
-              error: null,
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          rows: [
+            {
+              date: "2024-01-03",
+              returnsByTicker: { AAPL: Math.log(110 / 100), MSFT: Math.log(220 / 200) },
             },
-          }),
-          {
-            status: 200,
-            headers: {
-              "Content-Type": "application/json",
+            {
+              date: "2024-01-04",
+              returnsByTicker: { AAPL: Math.log(121 / 110), MSFT: Math.log(242 / 220) },
             },
-          },
-        ),
-      )
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            chart: {
-              result: [
-                {
-                  timestamp: [1704153600, 1704240000, 1704326400],
-                  indicators: {
-                    adjclose: [
-                      {
-                        adjclose: [200, 220, 242],
-                      },
-                    ],
-                  },
-                },
-              ],
-              error: null,
-            },
-          }),
-          {
-            status: 200,
-            headers: {
-              "Content-Type": "application/json",
-            },
-          },
-        ),
-      );
+          ],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
 
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await fetchAlignedReturnsForTickers(
-      ["aapl", "msft"],
-      "2024-01-02",
-      "2024-01-04",
-    );
+    const result = await fetchAlignedReturnsForTickers(["aapl", "msft"], "2024-01-02", "2024-01-04");
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("https://spo-tools.example.com/returns");
+    expect(JSON.parse(init?.body as string)).toEqual({
+      tickers: ["AAPL", "MSFT"],
+      start: "2024-01-02",
+      end: "2024-01-04",
+    });
 
     expect(result).toHaveLength(2);
-
     expect(result[0].date).toBe("2024-01-03");
     expect(result[0].returnsByTicker.AAPL).toBeCloseTo(Math.log(110 / 100));
     expect(result[0].returnsByTicker.MSFT).toBeCloseTo(Math.log(220 / 200));
-
     expect(result[1].date).toBe("2024-01-04");
     expect(result[1].returnsByTicker.AAPL).toBeCloseTo(Math.log(121 / 110));
     expect(result[1].returnsByTicker.MSFT).toBeCloseTo(Math.log(242 / 220));
   });
+
+  it("throws when SPO_TOOLS_URL is not set", async () => {
+    vi.stubEnv("SPO_TOOLS_URL", "");
+
+    await expect(
+      fetchAlignedReturnsForTickers(["AAPL", "MSFT"], "2024-01-01", "2024-01-05"),
+    ).rejects.toThrow("SPO_TOOLS_URL environment variable is not set");
+  });
+
+  it("throws when spo-tools returns a non-ok response", async () => {
+    vi.stubEnv("SPO_TOOLS_URL", "https://spo-tools.example.com");
+    const fetchMock = vi.fn<typeof fetch>();
+    fetchMock.mockResolvedValue(new Response("upstream error", { status: 502 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      fetchAlignedReturnsForTickers(["AAPL", "MSFT"], "2024-01-01", "2024-01-05"),
+    ).rejects.toThrow(/spo-tools \/returns failed with status 502/);
+  });
 });
 
 describe("fetchReturnsSinceDateForTickers", () => {
-  it("keeps the first return beginning before the monitoring start date", async () => {
-    const fetchMock = vi.fn<typeof fetch>();
+    it("keeps only returns on or after the monitoring start date", async () => {
+    vi.stubEnv("SPO_TOOLS_URL", "https://spo-tools.example.com");
 
+    const fetchMock = vi.fn<typeof fetch>();
     fetchMock.mockResolvedValue(
       new Response(
         JSON.stringify({
-          chart: {
-            result: [
-              {
-                timestamp: [
-                  1704153600, // 2024-01-02
-                  1704240000, // 2024-01-03
-                  1704326400, // 2024-01-04
-                  1704412800, // 2024-01-05
-                  1704672000, // 2024-01-08
-                ],
-                indicators: {
-                  adjclose: [
-                    {
-                      adjclose: [100, 101, 102, 104, 108],
-                    },
-                  ],
-                },
-              },
-            ],
-            error: null,
-          },
+          rows: [
+            { date: "2024-01-03", returnsByTicker: { AAPL: Math.log(101 / 100) } },
+            { date: "2024-01-04", returnsByTicker: { AAPL: Math.log(102 / 101) } },
+            { date: "2024-01-05", returnsByTicker: { AAPL: Math.log(104 / 102) } },
+            { date: "2024-01-08", returnsByTicker: { AAPL: Math.log(108 / 104) } },
+          ],
         }),
-        {
-          status: 200,
-          headers: {
-            "Content-Type": "application/json",
-          },
-        },
+        { status: 200, headers: { "Content-Type": "application/json" } },
       ),
     );
 
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await fetchReturnsSinceDateForTickers(
-      ["AAPL"],
-      "2024-01-05",
-      "2024-01-09",
-    );
+    const result = await fetchReturnsSinceDateForTickers(["AAPL"], "2024-01-05", "2024-01-09");
 
     expect(result).toHaveLength(2);
-
     expect(result[0].date).toBe("2024-01-05");
     expect(result[0].returnsByTicker.AAPL).toBeCloseTo(Math.log(104 / 102));
-
     expect(result[1].date).toBe("2024-01-08");
     expect(result[1].returnsByTicker.AAPL).toBeCloseTo(Math.log(108 / 104));
-  });
-});
-
-describe("fetchAdjustedClosePrices", () => {
-  it("fetches and parses adjusted close prices", async () => {
-    const fetchMock = vi.fn<typeof fetch>();
-
-    fetchMock.mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          chart: {
-            result: [
-              {
-                timestamp: [1577836800, 1577923200, 1578009600],
-                indicators: {
-                  adjclose: [
-                    {
-                      adjclose: [100, 101, 102],
-                    },
-                  ],
-                },
-              },
-            ],
-            error: null,
-          },
-        }),
-        {
-          status: 200,
-          headers: {
-            "Content-Type": "application/json",
-          },
-        },
-      ),
-    );
-
-    vi.stubGlobal("fetch", fetchMock);
-
-    const result = await fetchAdjustedClosePrices(
-      "aapl",
-      "2020-01-01",
-      "2020-01-03",
-    );
-
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-
-    const requestedUrl = fetchMock.mock.calls[0][0];
-
-    expect(requestedUrl).toBeInstanceOf(URL);
-
-    const url = requestedUrl as URL;
-
-    expect(url.pathname).toBe("/v8/finance/chart/AAPL");
-    expect(url.searchParams.get("period1")).toBe("1577836800");
-    expect(url.searchParams.get("period2")).toBe("1578009600");
-    expect(url.searchParams.get("interval")).toBe("1d");
-    expect(url.searchParams.get("events")).toBe("history");
-    expect(url.searchParams.get("includeAdjustedClose")).toBe("true");
-
-    expect(result).toEqual([
-      {
-        date: "2020-01-01",
-        adjustedClose: 100,
-      },
-      {
-        date: "2020-01-02",
-        adjustedClose: 101,
-      },
-      {
-        date: "2020-01-03",
-        adjustedClose: 102,
-      },
-    ]);
-  });
-
-  it("rejects an empty ticker", async () => {
-    await expect(
-      fetchAdjustedClosePrices("   ", "2020-01-01", "2020-01-03"),
-    ).rejects.toThrow("Ticker cannot be empty.");
-  });
-
-  it("rejects invalid dates", async () => {
-    await expect(
-      fetchAdjustedClosePrices("AAPL", "2020-02-30", "2020-03-03"),
-    ).rejects.toThrow("Invalid date: 2020-02-30");
-  });
-
-  it("rejects a start date that is not before the end date", async () => {
-    await expect(
-      fetchAdjustedClosePrices("AAPL", "2020-01-03", "2020-01-03"),
-    ).rejects.toThrow("Start date must be before end date.");
-  });
-
-  it("throws when the Yahoo Finance request fails", async () => {
-    const fetchMock = vi.fn<typeof fetch>();
-
-    fetchMock.mockResolvedValue(
-      new Response(null, {
-        status: 500,
-      }),
-    );
-
-    vi.stubGlobal("fetch", fetchMock);
-
-    await expect(
-      fetchAdjustedClosePrices("AAPL", "2020-01-01", "2020-01-03"),
-    ).rejects.toThrow("Yahoo Finance request failed with status 500.");
-  });
-
-  it("throws when Yahoo Finance returns an API error", async () => {
-    const fetchMock = vi.fn<typeof fetch>();
-
-    fetchMock.mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          chart: {
-            result: null,
-            error: {
-              code: "Not Found",
-              description: "No data found",
-            },
-          },
-        }),
-        {
-          status: 200,
-          headers: {
-            "Content-Type": "application/json",
-          },
-        },
-      ),
-    );
-
-    vi.stubGlobal("fetch", fetchMock);
-
-    await expect(
-      fetchAdjustedClosePrices("INVALID", "2020-01-01", "2020-01-03"),
-    ).rejects.toThrow("Yahoo Finance error: No data found");
-  });
-
-  it("throws when fewer than two valid prices are returned", async () => {
-    const fetchMock = vi.fn<typeof fetch>();
-
-    fetchMock.mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          chart: {
-            result: [
-              {
-                timestamp: [1577836800],
-                indicators: {
-                  adjclose: [
-                    {
-                      adjclose: [100],
-                    },
-                  ],
-                },
-              },
-            ],
-            error: null,
-          },
-        }),
-        {
-          status: 200,
-          headers: {
-            "Content-Type": "application/json",
-          },
-        },
-      ),
-    );
-
-    vi.stubGlobal("fetch", fetchMock);
-
-    await expect(
-      fetchAdjustedClosePrices("AAPL", "2020-01-01", "2020-01-03"),
-    ).rejects.toThrow("Insufficient market data found for AAPL.");
   });
 });

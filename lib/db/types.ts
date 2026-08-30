@@ -44,6 +44,11 @@ export interface DriftBaseline {
   createdAt: string;
 }
 
+export interface OptimizeUsageRepository {
+  getLastUsedAt(userId: string): Promise<string | null>;
+  recordUsage(userId: string): Promise<void>;
+}
+
 export type NewDriftBaseline = Omit<
   DriftBaseline,
   "userId" | "createdAt"

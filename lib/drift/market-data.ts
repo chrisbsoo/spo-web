@@ -10,22 +10,6 @@ export interface AlignedReturnRow {
   date: string;
   returnsByTicker: Record<string, number>;
 }
-interface YahooChartResponse {
-  chart: {
-    result: Array<{
-      timestamp?: number[];
-      indicators: {
-        adjclose?: Array<{
-          adjclose?: Array<number | null>;
-        }>;
-      };
-    }> | null;
-    error: {
-      code: string;
-      description: string;
-    } | null;
-  };
-}
 function toUnixSeconds(date: string): number {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
 
@@ -218,88 +202,6 @@ export function alignReturnsByTicker(
   }));
 }
 
-export async function fetchAdjustedClosePrices(
-  ticker: string,
-  startDate: string,
-  endDate: string,
-): Promise<MarketPricePoint[]> {
-  const symbol = ticker.trim().toUpperCase();
-
-  if (symbol.length === 0) {
-    throw new Error("Ticker cannot be empty.");
-  }
-
-  const period1 = toUnixSeconds(startDate);
-  const endTimestamp = toUnixSeconds(endDate);
-
-  if (period1 >= endTimestamp) {
-    throw new Error("Start date must be before end date.");
-  }
-
-  const period2 = endTimestamp;
-
-  const url = new URL(
-    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}`,
-  );
-
-  url.searchParams.set("period1", String(period1));
-  url.searchParams.set("period2", String(period2));
-  url.searchParams.set("interval", "1d");
-  url.searchParams.set("events", "history");
-  url.searchParams.set("includeAdjustedClose", "true");
-
-  const response = await fetch(url);
-
-  if (!response.ok) {
-    throw new Error(
-      `Yahoo Finance request failed with status ${response.status}.`,
-    );
-  }
-
-  const data = (await response.json()) as YahooChartResponse;
-
-  if (data.chart.error) {
-    throw new Error(`Yahoo Finance error: ${data.chart.error.description}`);
-  }
-
-  const result = data.chart.result?.[0];
-
-  if (!result) {
-    throw new Error(`No market data found for ${symbol}.`);
-  }
-
-  const timestamps = result.timestamp ?? [];
-  const adjustedCloses = result.indicators.adjclose?.[0]?.adjclose ?? [];
-
-  const pricePoints: MarketPricePoint[] = [];
-
-  const observationCount = Math.min(timestamps.length, adjustedCloses.length);
-
-  for (let i = 0; i < observationCount; i += 1) {
-    const adjustedClose = adjustedCloses[i];
-
-    if (
-      adjustedClose === null ||
-      !Number.isFinite(adjustedClose) ||
-      adjustedClose <= 0
-    ) {
-      continue;
-    }
-
-    const date = new Date(timestamps[i] * 1000).toISOString().slice(0, 10);
-
-    pricePoints.push({
-      date,
-      adjustedClose,
-    });
-  }
-
-  if (pricePoints.length < 2) {
-    throw new Error(`Insufficient market data found for ${symbol}.`);
-  }
-
-  return pricePoints;
-}
 
 export async function fetchAlignedReturnsForTickers(
   tickers: string[],
@@ -322,17 +224,29 @@ export async function fetchAlignedReturnsForTickers(
     throw new Error("Tickers must be unique.");
   }
 
-  const pricesByTicker: Record<string, MarketPricePoint[]> = {};
-
-  for (const ticker of normalizedTickers) {
-    pricesByTicker[ticker] = await fetchAdjustedClosePrices(
-      ticker,
-      startDate,
-      endDate,
-    );
+  const baseUrl = process.env.SPO_TOOLS_URL;
+  if (!baseUrl) {
+    throw new Error("SPO_TOOLS_URL environment variable is not set");
   }
 
-  return calculateAlignedReturnsFromPrices(pricesByTicker);
+  const response = await fetch(`${baseUrl}/returns`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tickers: normalizedTickers, start: startDate, end: endDate }),
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`spo-tools /returns failed with status ${response.status}: ${body}`);
+  }
+
+  const data = (await response.json()) as { rows: AlignedReturnRow[] };
+
+  if (data.rows.length === 0) {
+    throw new Error("No overlapping trading days found across tickers.");
+  }
+
+  return data.rows;
 }
 
 export async function fetchReturnsSinceDateForTickers(
