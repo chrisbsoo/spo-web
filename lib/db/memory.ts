@@ -5,6 +5,7 @@ import type {
   NewPortfolio,
   Portfolio,
   PortfolioRepository,
+  OptimizeUsageRepository,
 } from "./types";
 
 /**
@@ -95,3 +96,16 @@ export class MemoryDriftBaselineRepository
     return baseline;
   }
 }
+
+export class MemoryOptimizeUsageRepository implements OptimizeUsageRepository {
+  private usage = new Map<string, string>();
+
+  async getLastUsedAt(userId: string): Promise<string | null> {
+    return this.usage.get(userId) ?? null;
+  }
+
+  async recordUsage(userId: string): Promise<void> {
+    this.usage.set(userId, new Date().toISOString());
+  }
+}
+

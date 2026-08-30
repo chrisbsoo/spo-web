@@ -34,3 +34,9 @@ CREATE TABLE IF NOT EXISTS drift_baselines (
 
 CREATE INDEX IF NOT EXISTS idx_drift_baselines_user_id
   ON drift_baselines(user_id);
+
+
+CREATE TABLE IF NOT EXISTS optimize_usage (
+  user_id       TEXT PRIMARY KEY,
+  last_used_at  TEXT NOT NULL  -- ISO datetime of the user's last successful /optimize call
+);

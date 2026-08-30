@@ -7,6 +7,7 @@ import type {
   NewPortfolio,
   Portfolio,
   PortfolioRepository,
+  OptimizeUsageRepository
 } from "./types";
 
 interface PortfolioRow {
@@ -205,5 +206,28 @@ export class D1DriftBaselineRepository implements DriftBaselineRepository {
       userId,
       createdAt,
     };
+  }
+}
+
+export class D1OptimizeUsageRepository implements OptimizeUsageRepository {
+  constructor(private readonly db: D1Database) {}
+
+  async getLastUsedAt(userId: string): Promise<string | null> {
+    const row = await this.db
+      .prepare("SELECT last_used_at FROM optimize_usage WHERE user_id = ?")
+      .bind(userId)
+      .first<{ last_used_at: string }>();
+    return row?.last_used_at ?? null;
+  }
+
+  async recordUsage(userId: string): Promise<void> {
+    const now = new Date().toISOString();
+    await this.db
+      .prepare(
+        `INSERT INTO optimize_usage (user_id, last_used_at) VALUES (?, ?)
+         ON CONFLICT(user_id) DO UPDATE SET last_used_at = excluded.last_used_at`,
+      )
+      .bind(userId, now)
+      .run();
   }
 }

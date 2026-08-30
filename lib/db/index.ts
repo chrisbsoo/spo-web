@@ -1,11 +1,12 @@
-import { D1DriftBaselineRepository, D1PortfolioRepository } from "./d1";
+import { D1DriftBaselineRepository, D1PortfolioRepository, D1OptimizeUsageRepository } from "./d1";
 
 import {
   MemoryDriftBaselineRepository,
   MemoryPortfolioRepository,
+  MemoryOptimizeUsageRepository
 } from "./memory";
 
-import type { DriftBaselineRepository, PortfolioRepository } from "./types";
+import type { DriftBaselineRepository, PortfolioRepository, OptimizeUsageRepository } from "./types";
 
 // A single in-memory store shared across requests during local `next dev`
 // (no real D1 binding available outside the Cloudflare runtime / `wrangler
@@ -61,4 +62,21 @@ export async function getDriftBaselineRepository(): Promise<DriftBaselineReposit
   }
 
   return devDriftBaselineStore;
+}
+
+let devOptimizeUsageStore: MemoryOptimizeUsageRepository | null = null;
+
+export async function getOptimizeUsageRepository(): Promise<OptimizeUsageRepository> {
+  try {
+    const { getCloudflareContext } = await import("@opennextjs/cloudflare");
+    const context = getCloudflareContext();
+    if (context.env.DB) {
+      return new D1OptimizeUsageRepository(context.env.DB);
+    }
+  } catch (err) {
+    console.error("getCloudflareContext failed, falling back to in-memory optimize-usage store:", err);
+  }
+
+  if (!devOptimizeUsageStore) devOptimizeUsageStore = new MemoryOptimizeUsageRepository();
+  return devOptimizeUsageStore;
 }
