@@ -1,158 +1,132 @@
 # spo-web
 
-The trader-facing product: log in, build a sparse portfolio allocation from
-real tickers, save it, come back to it later. Frontend + gateway in one
-Next.js app; the actual optimization math lives in a separate, already-live
-service, [`spo-tools`](https://github.com/<your-username>/spo-tools).
+**Live: [spo-web.com](https://spo-web.com)**
 
-```
-Browser --> Next.js (Cloudflare Pages/Workers) --> spo-tools API (Render)
-                |
-                v
-        D1 (accounts, saved portfolios) via Clerk-authenticated routes
-```
+The trader-facing product: log in, build a sparse portfolio allocation from
+real tickers, save it, come back to it later, and get notified if the market
+has drifted away from what you optimised against. Frontend + gateway in one
+Next.js app; the optimization math and market data both live in a separate,
+independently deployed service, [`spo-tools`](https://github.com/chrisbsoo/spo-tools).
+
+
 
 ## Status
 
-v0.1 (core loop): auth, build a portfolio, save it, view it, delete it. All
-build/test/typecheck-verified locally (see below). Not yet deployed to a
-real Cloudflare account — that's the next step, and needs your credentials,
-not mine.
+**v0.2.0, live.** Auth, build/save/view/delete a portfolio, and data drift
+detection (PSI + Kolmogorov-Smirnov statistics comparing live market returns
+against each saved portfolio's frozen baseline) are all shipped and running
+in production. Full history in [CHANGELOG.md](CHANGELOG.md).
 
-Drift detection (reusing the PSI/KS logic from `modelwatch`) is planned for
-v0.3, deliberately last — see the parent roadmap discussion.
+## What's actually running in production, not just tested locally
 
-## What's actually verified vs. what still needs you
-
-I can't create Cloudflare/Clerk accounts or provision real infrastructure —
-so everything below was checked as far as it can be without your real
-credentials:
-
-| Checked | How |
+| Verified | How |
 |---|---|
-| Every API route compiles and type-checks | `npm run typecheck` — clean |
-| Ownership scoping (user A can't read/delete/list user B's data) | `npm test` — 18/18, including 3 tests specifically for this |
-| Input validation (bad tickers, bad dates, out-of-range params all rejected) | `npm test` |
-| The whole app actually builds, every route included | `npm run build` — succeeds, all 9 routes compile |
-| D1 queries are parameterized and user-scoped, not just "should be" | `npm test` — asserts on the actual SQL + bindings sent |
+| Real signup → build → save → refresh → data persists | Done manually against the live site, not just mocked tests |
+| Drift detection against real market data | Screenshot-verified two days running, numbers shift correctly as new trading days land |
+| Ownership scoping (user A can't read/delete/list user B's data) | Tests assert on the actual SQL sent, not just app-level behaviour |
+| Market data fetching | Migrated from direct Yahoo Finance calls to `spo-tools`'s `/returns` endpoint after production 429s, see [CHANGELOG](CHANGELOG.md) |
+| Per-account rate limiting | One `/optimize` call/hour/user, enforced via D1, friendly error message on limit |
 
-**Not yet checked** (needs a real Cloudflare account + Clerk keys, which I don't have):
-- Deploying to Cloudflare Workers via `opennextjs-cloudflare`
-- Creating and migrating a real D1 database
-- Clerk auth actually completing a real sign-in flow in a browser
+## The core loop
+
+1. Log in (Clerk)
+2. Enter tickers, a date range, pick an algorithm, set risk-aversion/sparsity via sliders
+3. Run it, calls `spo-tools`'s `/optimize`, shows the allocation as a chart (hover a bar for the exact percentage)
+4. Save it, persists to D1, and freezes a snapshot of that period's return distribution as a drift baseline
+5. Come back later, hit "Check drift", compares fresh market data against that baseline, flags `stable`/`warning`/`drift` per ticker
 
 ## Setup
 
 ```bash
-git clone https://github.com/<your-username>/spo-web.git
+git clone https://github.com/chrisbsoo/spo-web.git
 cd spo-web
 npm install
-cp .env.example .env.local
+cp .env.example .env.local   # real Clerk keys + SPO_TOOLS_URL
 npm run dev
 ```
 
-Local dev uses an in-memory portfolio store (no D1 needed) — data resets
-every time the dev server restarts. That's expected, not a bug; D1 only
-kicks in once deployed (or under `wrangler dev`).
+Local dev uses an in-memory store for portfolios/drift baselines/usage, no
+D1 needed, resets on restart. Expected, not a bug; D1 only applies once
+deployed (or under `wrangler dev`).
 
 ### Commands
 
 | Command | What it does |
 |---|---|
 | `npm run dev` | Local dev server |
-| `npm run test` | Vitest — 18 tests, ownership scoping + validation |
+| `npm run test` | Vitest, ownership scoping, D1 query scoping, validation, drift statistics, market-data client |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run lint` | ESLint |
-| `npm run build` | Real `next build` — verifies every route compiles |
+| `npm run build` | Real `next build`, verifies every route compiles |
 | `npm run cf:deploy` | Builds via OpenNext and deploys to Cloudflare Workers |
 
-## Deploying — what you need to do
+## Deploying your own copy
 
-1. **Create a Clerk app** at clerk.com (free tier, 50K MAU). Copy the
-   publishable + secret keys.
-2. **Create the D1 database**:
-   ```bash
-   npx wrangler login
-   npx wrangler d1 create spo-web-db
-   ```
-   Copy the `database_id` it prints into `wrangler.jsonc` (there's a
-   placeholder marking exactly where).
-3. **Apply the schema**:
-   ```bash
+1. **Clerk app** at clerk.com (free tier, 50K MAU), publishable + secret keys.
+2. **D1 database**: `npx wrangler login && npx wrangler d1 create spo-web-db`, paste the printed `database_id` into `wrangler.jsonc`.
+3. **Apply the schema, this is a separate manual step from deploying code, easy to miss:**
+```bash
    npx wrangler d1 execute spo-web-db --remote --file=./schema.sql
-   ```
-4. **Set secrets** for the deployed Worker (not just local `.env.local`):
-   ```bash
-   npx wrangler secret put CLERK_SECRET_KEY
-   ```
-   `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `SPO_TOOLS_URL` are public-safe —
-   set them as plain vars in the Cloudflare dashboard (Workers & Pages ->
-   your project -> Settings -> Variables) rather than secrets.
-5. **Deploy**:
-   ```bash
-   npm run cf:deploy
-   ```
-   First run prints your live `*.workers.dev` URL. A custom domain can be
-   attached afterward in the Cloudflare dashboard.
-6. **Connect CI to auto-build** (optional but recommended, matches the other
-   two repos' pattern): Cloudflare's Git integration (Workers & Pages ->
-   Create -> connect this repo) rebuilds and redeploys on every push to
-   `main`, reading `wrangler.jsonc` the same way Render reads `render.yaml`.
+```
+   `CREATE TABLE IF NOT EXISTS` throughout, so safe to re-run any time you add a table and aren't sure it's migrated.
+4. **Secrets**: `npx wrangler secret put CLERK_SECRET_KEY`. `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `SPO_TOOLS_URL` are public-safe, set as plain `vars` in `wrangler.jsonc` or the Cloudflare dashboard.
+5. **Deploy**: `npm run cf:deploy`, prints your live `*.workers.dev` URL; attach a custom domain afterward via the Domains tab.
+6. **CI/CD**: GitHub Actions builds and deploys on every push to `main` (see `.github/workflows/cd.yml`), tests gate the deploy, so a broken build never ships.
 
 ## Why a Next.js app instead of a separate frontend + Workers gateway
 
 Next.js API routes deployed via `@opennextjs/cloudflare` already run *as*
-Cloudflare Workers under the hood — a separate Workers project for "the
-gateway" would just be the same runtime with extra deployment overhead.
-UI lives in `app/`, gateway logic (auth check, D1 access, proxying to
-`spo-tools`) lives in `app/api/*` — architecturally distinct, operationally
-one deploy.
+Cloudflare Workers under the hood, a separate Workers project for "the
+gateway" would just be the same runtime with extra deployment overhead. UI
+in `app/`, gateway logic (auth, D1, proxying to `spo-tools`) in `app/api/*`, architecturally distinct, operationally one deploy.
 
-`@opennextjs/cloudflare` was chosen over Cloudflare's newer `vinext`
-recommendation deliberately: `vinext` is days old as of this writing;
-OpenNext hit 1.0 GA in February 2026 and has broad community
-troubleshooting behind it. Worth revisiting once `vinext` has more track
-record, not worth the risk for a project that needs to actually work now.
+## Repository layout (backend)
 
-## Repository layout
-
-```
 app/
-  page.tsx                 landing page
-  layout.tsx                 ClerkProvider + global styles
-  sign-in/, sign-up/           Clerk auth pages
-  dashboard/
-    page.tsx                    list saved portfolios
-    new/page.tsx                  build + save a new one (the core loop)
-    [id]/page.tsx                  view a saved portfolio
-  api/
-    optimize/route.ts           proxies to spo-tools, no persistence
-    portfolios/route.ts           list/save, scoped to the logged-in user
-    portfolios/[id]/route.ts        get/delete one, ownership-checked
+├── page.tsx, layout.tsx        landing page, ClerkProvider + global styles
+├── sign-in/, sign-up/          Clerk auth pages
+├── dashboard/
+│   ├── page.tsx                list saved portfolios
+│   ├── new/page.tsx            build + save a new one
+│   └── [id]/page.tsx, DriftCheck.tsx  view a portfolio + run a drift check
+└── api/
+    ├── optimize/route.ts       proxies to spo-tools, rate-limited per account
+    ├── portfolios/route.ts     list/save, scoped to the logged-in user
+    ├── portfolios/[id]/route.ts        get/delete one, ownership-checked
+    └── portfolios/[id]/drift/route.ts  compares live data against the saved baseline
+
 lib/
-  db/
-    types.ts                  PortfolioRepository interface (ownership scoping baked into every method signature)
-    memory.ts                   in-memory implementation (local dev, tests)
-    d1.ts                        real D1 implementation (production)
-    index.ts                      picks the right one for the environment
-  validation.ts               zod schemas
-  spo-tools-client.ts           the only place this app talks to spo-tools
-proxy.ts                      Clerk auth gate (Next.js 16's "proxy" convention, formerly "middleware")
-schema.sql                    D1 schema
-wrangler.jsonc                 Cloudflare deploy config
-tests/                        18 tests: ownership scoping, D1 query scoping, validation
-```
+├── db/                         PortfolioRepository, DriftBaselineRepository, OptimizeUsageRepository
+│                                 — memory (dev/test) + D1 (production) implementations of each
+├── drift/                      statistics.ts (PSI, KS test), market-data.ts (calls spo-tools/returns), service.ts
+├── validation.ts
+└── spo-tools-client.ts
+
+proxy.ts          Clerk auth gate
+schema.sql         D1 schema: portfolios, drift_baselines, optimize_usage
+wrangler.jsonc      Cloudflare deploy config
+tests/              ownership scoping, D1 query scoping, validation, drift math, market-data client
+
 
 ## On the ownership-scoping pattern
 
 The single most common real SaaS bug is a route that fetches by ID without
-checking the caller owns that ID — someone changes a URL and reads someone
-else's data. `PortfolioRepository`'s interface makes every method require
-`userId` as its first argument, so there's no code path that returns data
-without an owner in scope to begin with. `tests/db-ownership.test.ts` and
-`tests/d1-scoping.test.ts` test this directly, including that the D1
-implementation's actual SQL contains `WHERE user_id = ?`, not just that the
-application code intends it to.
+checking the caller owns that ID. Every repository interface (`Portfolio`,
+`DriftBaseline`, `OptimizeUsage`) requires `userId` as its first argument on
+every method, so there's no code path that returns data without an owner in
+scope to begin with, enforced by tests asserting on the actual SQL sent,
+not just application-level behaviour.
+
+## Version history
+
+Full changelog: [CHANGELOG.md](CHANGELOG.md). Latest: **v0.2.0**, data
+drift detection, market-data fetching migrated to `spo-tools` (fixed
+production Yahoo rate-limit failures), per-account rate limiting.
+
+## Contributors
+
+Data drift detection (`lib/drift/`, the drift API route, and the
+`DriftCheck` UI) by [Keyaan Miah](https://github.com/KM016).
 
 ## License
 
