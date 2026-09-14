@@ -9,7 +9,6 @@ Next.js app; the optimization math and market data both live in a separate,
 independently deployed service, [`spo-tools`](https://github.com/chrisbsoo/spo-tools).
 
 
-
 ## Status
 
 **v0.2.0, live.** Auth, build/save/view/delete a portfolio, and data drift
@@ -17,7 +16,66 @@ detection (PSI + Kolmogorov-Smirnov statistics comparing live market returns
 against each saved portfolio's frozen baseline) are all shipped and running
 in production. Full history in [CHANGELOG.md](CHANGELOG.md).
 
-## What's actually running in production, not just tested locally
+## 🤖 Ask an LLM about this repo
+
+Paste the block below into ChatGPT, Claude, Gemini, or whatever your favourite LLM is. 
+
+This is a compact primer covering what this project does, how it's
+built, and where everything lives, so you can ask follow-up questions
+without reading the whole repo first.
+
+\`\`\`
+You are helping someone understand a GitHub repository called spo-web.
+
+WHAT IT IS: A live web app for traders — log in, enter stock tickers and a
+date range, get a sparse portfolio allocation back (most positions driven
+to exactly zero, not just small — an L1-regularised optimisation result,
+not a heuristic), save it, and get notified if live market data has since
+drifted from what the portfolio was optimised against.
+
+LIVE URL: https://spo-web.com
+
+ARCHITECTURE — two independently deployed services, not one monolith:
+- spo-web (this repo): Next.js on Cloudflare Workers (via the OpenNext
+  adapter), Clerk for auth, Cloudflare D1 for storage. Handles the UI,
+  user accounts, saved portfolios, and drift detection.
+- spo-tools (github.com/chrisbsoo/spo-tools): a separate Python/FastAPI
+  service on Render. Does the actual numerical work — four variance-
+  reduced stochastic gradient optimisers (SPGD, Prox-SVRG, Prox-SARAH,
+  Prox-STORM), each with a proven convergence guarantee from an
+  undergraduate dissertation — plus a /returns endpoint that fetches and
+  caches market data, used by both services so there's one source of
+  truth rather than two implementations hitting Yahoo Finance separately.
+
+KEY DESIGN DECISION WORTH KNOWING: every database read/write in spo-web
+requires a userId as the first argument at the type level (see
+lib/db/types.ts) — there is no code path that can return data without an
+owner in scope. This exists specifically to make "forgot to scope a query
+by user" (the most common real SaaS data-leak bug) structurally hard to
+write, not just discouraged by convention. It's tested directly, including
+assertions on the literal SQL sent to the database, not just app-level
+behaviour.
+
+STACK: TypeScript, Next.js (App Router), Cloudflare Workers, D1 (SQLite at
+the edge), Clerk, Vitest — on this side. Python, FastAPI, NumPy, Prometheus,
+pytest, Render — on spo-tools.
+
+TESTED AND DEPLOYED, NOT JUST WRITTEN: both services have CI/CD (GitHub
+Actions) gating every deploy on lint/typecheck/test passing first. Combined
+~95+ tests across both repos. Full version history in CHANGELOG.md.
+
+REPO LAYOUT: app/ (pages + API routes), lib/db/ (repository pattern —
+memory implementation for local dev/tests, D1 for production), lib/drift/
+(the PSI/Kolmogorov-Smirnov statistical drift detection), schema.sql (D1
+schema), wrangler.jsonc (deploy config).
+
+You can help by: explaining any file in the repo, walking through how a
+request flows from the browser to the database, explaining the drift-
+detection math, or suggesting what to look at first based on what the
+person wants to understand.
+\`\`\`
+
+## What's in production?
 
 | Verified | How |
 |---|---|
@@ -73,7 +131,7 @@ deployed (or under `wrangler dev`).
 5. **Deploy**: `npm run cf:deploy`, prints your live `*.workers.dev` URL; attach a custom domain afterward via the Domains tab.
 6. **CI/CD**: GitHub Actions builds and deploys on every push to `main` (see `.github/workflows/cd.yml`), tests gate the deploy, so a broken build never ships.
 
-## Why a Next.js app instead of a separate frontend + Workers gateway
+## Why a Next.js app?
 
 Next.js API routes deployed via `@opennextjs/cloudflare` already run *as*
 Cloudflare Workers under the hood, a separate Workers project for "the
@@ -108,7 +166,7 @@ wrangler.jsonc      Cloudflare deploy config
 tests/              ownership scoping, D1 query scoping, validation, drift math, market-data client
 
 
-## On the ownership-scoping pattern
+## Ownership Scoping Pattern
 
 The single most common real SaaS bug is a route that fetches by ID without
 checking the caller owns that ID. Every repository interface (`Portfolio`,
