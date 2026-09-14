@@ -24,7 +24,7 @@ This is a compact primer covering what this project does, how it's
 built, and where everything lives, so you can ask follow-up questions
 without reading the whole repo first.
 
-\`\`\`
+```
 You are helping someone understand a GitHub repository called spo-web.
 
 WHAT IT IS: A live web app for traders — log in, enter stock tickers and a
@@ -73,7 +73,7 @@ You can help by: explaining any file in the repo, walking through how a
 request flows from the browser to the database, explaining the drift-
 detection math, or suggesting what to look at first based on what the
 person wants to understand.
-\`\`\`
+```
 
 ## What's in production?
 
