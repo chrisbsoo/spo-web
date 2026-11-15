@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { AppHeader } from "../../components/AppHeader";
+import { ColdStartNotice } from "../../components/ColdStartNotice";
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, XAxis, YAxis } from "recharts";
 
 interface AssetWeight {
@@ -102,6 +103,8 @@ export default function NewPortfolioPage() {
       <AppHeader />
       <main className="mx-auto w-full max-w-4xl px-6 py-10 flex-1 space-y-8">
         <h1 className="font-[family-name:var(--font-display)] text-xl text-foreground">New portfolio</h1>
+
+        <ColdStartNotice />
 
         <div className="rounded-lg border border-border bg-surface p-6 space-y-6">
           <div>
@@ -213,6 +216,13 @@ export default function NewPortfolioPage() {
           >
             {loading ? "Running…" : "Run optimisation"}
           </button>
+
+          {loading && (
+            <p className="text-center text-xs text-muted">
+              Still waiting? The backend may be waking from sleep — a first run
+              after an idle period can take up to ~50s.
+            </p>
+          )}
         </div>
 
         {error && (

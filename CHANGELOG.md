@@ -2,6 +2,14 @@
 
 Format based on [Keep a Changelog](https://keepachangelog.com/), versioning follows [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- Free-tier cold start notice: an amber banner on the build page and the drift
+  panel explaining that `spo-tools` sleeps after 15 minutes idle and can take
+  up to ~50 seconds to wake, plus an in-flight hint under the run button.
+- README section documenting measured cold (22s) vs warm (0.8s) latencies.
+
 ## [0.2.0] - 2026-08-31
 
 ### Added

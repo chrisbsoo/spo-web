@@ -75,6 +75,27 @@ detection math, or suggesting what to look at first based on what the
 person wants to understand.
 ```
 
+## Free-tier cold starts
+
+`spo-tools` runs on a Render **free** instance, which sleeps after 15 minutes
+without traffic. The next request pays a cold start while the container boots:
+
+| State | `/health` latency (measured) |
+|---|---|
+| Waking from idle | **~22s** (Render's documented worst case is ~50s) |
+| Already warm | **0.8s** |
+
+Because `spo-web` proxies `/optimize` and the drift check through that service,
+the first action after a quiet period can appear to hang. This is expected
+behaviour on the free tier, not an outage:
+
+- The UI shows an amber **Free-tier cold start** notice (`app/components/ColdStartNotice.tsx`) on the build page and the drift panel, plus a hint under the button while a request is in flight.
+- Client timeouts must stay above ~60s, or a legitimate wake-up will look like a failure.
+- Upgrading `spo-tools` to Render's `starter` plan removes the sleep entirely; the notice should then be deleted.
+
+Note that `spo-web` itself is not affected — it deploys to Cloudflare Workers,
+which do not sleep.
+
 ## What's in production?
 
 | Verified | How |
