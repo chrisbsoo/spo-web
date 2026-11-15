@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ColdStartNotice } from "../../components/ColdStartNotice";
 
 type DriftStatus = "stable" | "warning" | "drift";
 
@@ -86,6 +87,8 @@ export function DriftCheck({
           {checking ? "Checking…" : "Check drift"}
         </button>
       </div>
+
+      <ColdStartNotice />
 
       {error && (
         <p className="text-sm text-danger">
